@@ -1,0 +1,172 @@
+---
+  - hosts: all
+    name: UpdateSudo
+    become: yes
+    become_method: sudo
+    gather_facts: yes
+    tasks:
+      - name: Get sudo version
+        package_facts:
+          manager: auto
+
+      - name: Set sudo version
+        set_fact:
+          sudo_version: "{{ ansible_facts.packages.sudo[0].version }}-{{ ansible_facts.packages.sudo[0].release }}"
+
+      - name: Output sudo version
+        debug:
+          msg: "{{ sudo_version }}"
+
+      - name: Install rsync if needed
+        yum:
+          name: rsync
+          state: present
+
+      - name: Sync the file to the Oracle 6 HOST
+        synchronize:
+          checksum: yes
+          src: sudo-1.8.6p3-29.0.2_oracle_.el6_10.3.x86_64.rpm
+          dest: /tmp/sudo-1.8.6p3-29.0.2_oracle_.el6_10.3.x86_64.rpm
+          owner: yes
+          group: yes
+        when:
+          - ansible_facts['distribution'] == "Oracle"
+          - ansible_facts['distribution_major_version'] == "6"
+          - sudo_version != '1.8.6p3-29.0.2.el6_10.3'
+        notify:
+          - oel6install
+          - oel6cleanup
+
+      - name: Sync the file to the Oracle 7 HOST
+        synchronize:
+          checksum: yes
+          src: sudo-1.8.23-10_oracle_.el7_9.1.x86_64.rpm
+          dest: /tmp/sudo-1.8.23-10_oracle_.el7_9.1.x86_64.rpm
+          owner: yes
+          group: yes
+        when:
+          - ansible_facts['distribution'] == "Oracle"
+          - ansible_facts['distribution_major_version'] == "7"
+          - sudo_version != '1.8.23-10.el7'
+        notify:
+          - oel7install
+          - oel7cleanup
+
+      - name: Sync the file to the CentOS HOST
+        synchronize:
+          checksum: yes
+          src: sudo-1.8.23-10.el7_9.1_centos_.x86_64.rpm
+          dest: /tmp/sudo-1.8.23-10.el7_9.1_centos_.x86_64.rpm
+          owner: yes
+          group: yes
+        when:
+          - ansible_facts['distribution'] == "CentOS"
+          - ansible_facts['distribution_major_version'] == "7"
+          - sudo_version != '1.8.23-10.el7_9.1'
+        notify:
+          - cent7install
+          - cent7cleanup
+
+      - name: Sync the file to the el7 HOST
+        synchronize:
+          checksum: yes
+          src: sudo-1.8.23-10.el7_9.1.x86_64.rpm
+          dest: /tmp/sudo-1.8.23-10.el7_9.1.x86_64.rpm
+          owner: yes
+          group: yes
+        when:
+          - ansible_facts['distribution'] != "CentOS"
+          - ansible_facts['distribution_major_version'] == "7"
+          - sudo_version != '1.8.23-10.el7_9.1'
+        notify:
+          - el7install
+          - el7cleanup
+
+      - name: Sync the file to the el6 HOST
+        synchronize:
+          checksum: yes
+          src: sudo-1.8.6p3-29.el6_10.4.x86_64.rpm
+          dest: /tmp/sudo-1.8.6p3-29.el6_10.4.x86_64.rpm
+          owner: yes
+          group: yes
+        when:
+          - ansible_facts['distribution'] != "CentOS"
+          - ansible_facts['distribution_major_version'] == "6"
+          - sudo_version != '1.8.6p3-29.el6_10.4'
+        notify:
+          - el6install
+          - el6cleanup
+
+    handlers:
+      - name: Install on OEL6
+        yum:
+          name: /tmp/sudo-1.8.6p3-29.0.2_oracle_.el6_10.3.x86_64.rpm
+          state: present
+          allow_downgrade: yes
+        listen: oel6install
+                
+      - name: Install on OEL7
+        yum:
+          name: /tmp/sudo-1.8.23-10_oracle_.el7_9.1.x86_64.rpm
+          state: present
+          allow_downgrade: yes
+        listen: oel7install
+        
+      - name: Install on CentOS 7
+        yum:
+          name: /tmp/sudo-1.8.23-10.el7_9.1_centos_.x86_64.rpm
+          state: present
+          allow_downgrade: yes
+        listen: cent7install
+                
+      - name: Install on EL6
+        yum:
+          name: /tmp/sudo-1.8.6p3-29.el6_10.4.x86_64.rpm
+          state: present
+          allow_downgrade: yes
+        listen: el6install
+                
+      - name: Install on EL7
+        yum:
+          name: /tmp/sudo-1.8.23-10.el7_9.1.x86_64.rpm
+          state: present
+          allow_downgrade: yes
+        listen: el7install
+
+      - name: Cleanup Sudo Package
+        file:
+          path: "/tmp/sudo-1.8.6p3-29.el6_10.4.x86_64.rpm"
+          state: absent
+        listen: el6cleanup
+
+      - name: Cleanup Sudo Package
+        file:
+          path: "/tmp/sudo-1.8.23-10.el7_9.1.x86_64.rpm"
+          state: absent
+        listen: el7cleanup
+
+      - name: Cleanup Sudo Package
+        file:
+          path: "/tmp/sudo-1.8.23-10.el7_9.1_centos_.x86_64.rpm"
+          state: absent
+        listen: cent7cleanup
+
+      - name: Cleanup Sudo Package
+        file:
+          path: "/tmp/sudo-1.8.6p3-29.0.2_oracle_.el6_10.3.x86_64.rpm"
+          state: absent
+        listen: oel6cleanup
+
+      - name: Cleanup Sudo Package
+        file:
+          path: "/tmp/sudo-1.8.23-10_oracle_.el7_9.1.x86_64.rpm"
+          state: absent
+        listen: oel7cleanup
+
+
+ 
+
+
+
+
+

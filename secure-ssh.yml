@@ -1,0 +1,121 @@
+---
+  - hosts: all
+    name: SSH Hardening
+    become: yes
+    become_method: sudo
+    gather_facts: yes
+    vars:
+      patterns:
+        - arcfour256
+        - arcfour
+        - aes192-cbc
+        - aes256-cbc
+        - diffie-hellman-group1-sha1
+        - diffie-hellman-group-exchange-sha1
+
+    tasks:
+    - name: Set sshchange to true
+      set_fact:
+        sshchange: False
+
+    - name: KexAlgorithms - Uncomment if commented
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '(^#)([kK][eE][xX].*)'
+        line: '\2'
+        backrefs: yes
+
+    - name: Check if KexAlgorithms is present
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '(^[kK][eE][xX].*)'
+        #line: '\1'
+        state: absent
+      register: kex
+      changed_when: kex.found == 0
+      check_mode: yes
+
+    - name: Add KexAlgorithms if missing on RHEL 7 or more
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        line: KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group14-sha1,diffie-hellman-group-exchange-sha256
+        state: present
+      when:
+        - kex.found == 0 
+        - ansible_facts.distribution_major_version >= 7
+      notify: Set sshchange
+
+    - name: Add KexAlgorithms if missing on RHEL 6
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        line: KexAlgorithms diffie-hellman-group-exchange-sha256,diffie-hellman-group14-sha1
+        state: present
+      when:
+        - kex.found == 0 
+        - ansible_facts.distribution_major_version == 6
+      notify: Set sshchange
+
+    - name: Ciphers - Uncomment if commented
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '(^#)([Cc][Ii][Pp][Hh][Ee][Rr][Ss].*)'
+        line: '\2'
+        backrefs: yes
+      notify: Set sshchange
+
+    - name: Check if Ciphers is present
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '(^[Cc][Ii][Pp][Hh][Ee][Rr][Ss].*)'
+        line: '\1'
+        state: absent
+      register: ciphers
+      changed_when: ciphers.found == 0
+      check_mode: yes
+
+    - name: Add Ciphers if missing on RHEL 7 or more
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        line: Ciphers aes256-gcm@openssh.com,aes128-gcm@openssh.com,chacha20-poly1305@openssh.com,aes256-ctr
+        state: present
+      when:
+        - ciphers.found == 0 
+        - ansible_facts.distribution_major_version >= 7
+      notify: Set sshchange
+
+    - name: Add Ciphers if missing on RHEL 6
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        line: Ciphers aes256-ctr,aes192-ctr
+        state: present
+      when:
+        - ciphers.found == 0 
+        - ansible_facts.distribution_major_version == 6
+      notify: Set sshchange
+
+    - name: Remove insecure options from sshd
+      replace:
+        path: /etc/ssh/sshd_config
+        regexp: '[,](\s+)?({{ item }})(\t?)|(?<=\s)({{ item }})(\s+)?[,]'
+        backup: yes
+      loop: "{{ patterns }}"
+      notify: Set sshchange
+
+    - name: Disable root login over SSH
+      lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: "^[Pp][Ee][Rr][Mm][Ii][Tt][Rr][Oo][Oo][Tt][lL][Oo][Gg][Ii][Nn].*"
+        line: "PermitRootLogin no"
+        state: present
+      notify: Set sshchange
+
+    - name: Restart SSH Daemon
+      service:
+        name: sshd
+        state: restarted
+      when: sshchange == true
+
+    handlers:
+      - name: Set sshchange
+        set_fact:
+          sshchange: true

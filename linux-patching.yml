@@ -1,0 +1,87 @@
+---
+# Playbook for Linux Patching
+- hosts: all
+  become: yes
+  become_method: sudo
+  remote_user: "{{ lookup('env', 'USER') }}"
+  tasks:
+    - name: Disable Chef
+      service:
+        name: chef-client
+        state: stopped
+        enabled: no
+
+    - name: Find /etc/yum.repos.d/ repo files
+      find:
+        paths: /etc/yum.repos.d/
+        file_type: file
+        excludes: '*redhat.repo'
+        patterns: '*.repo'
+      register: repofiles
+
+    - name: Disable Repositories
+      replace:
+        path: "{{ item.path }}"
+        regexp: '^(enabled)(\s+)?(=)(\s+)?(1)$'
+        replace: 'enabled=0'
+      loop: "{{ repofiles.files }}"
+
+    - name: Check to make sure cache exists
+      stat:
+        path: /var/cache/yum
+      register: yumcache
+
+    - name: Remove YUM Cache
+      file:
+        path: /var/cache/yum
+        state: absent
+      when: yumcache.stat.exists
+
+    - name: yum-clean-all
+      command: yum clean all
+      args:
+        warn: no
+
+    # https://github.com/ansible/ansible-modules-extras/issues/2384
+    # https://github.com/ansible/ansible-modules-extras/issues/2384#issuecomment-241534464
+    # https://github.com/ansible/ansible-modules-extras/issues/2384#issuecomment-252082827
+    #
+    #- name: Disable repository files
+    #  yum_repository:
+    #    name: "{{ item.path.split('/')[-1] }}"
+    #    enabled: no
+    #  loop: "{{ repofiles.files }}"
+
+    - name: Update all RHEL Packages
+      yum:
+        use_backend: auto
+        skip_broken: yes
+        update_cache: yes
+        name: '*'
+        state: latest
+      register: packageupdate
+
+    - name: Get the kernel name-version-release
+      shell:
+        cmd: rpm -q kernel --queryformat '%{name}-%{version}-%{release}\n'
+      register: rpm_output
+
+    - name: Reboot the server
+      reboot:
+        msg: 'System Rebooted Because Kernel Was Updated'
+        test_command: uptime
+      loop: "{{ rpm_output.stdout_lines }}"
+      when: item == "kernel-3.10.0-1160.11.1.el7"
+
+    - name: Enable Repositories
+      replace:
+        path: "{{ item.path }}"
+        regexp: '^(enabled)(\s+)?(=)(\s+)?(0)$'
+        replace: 'enabled=1'
+      loop: "{{ repofiles.files }}"
+
+    - name: Enable Chef
+      service:
+        name: chef-client
+        state: restarted
+        enabled: yes
