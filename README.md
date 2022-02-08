@@ -1,4 +1,4 @@
-# ![logo](https://upload.wikimedia.org/wikipedia/commons/2/24/Ansible_logo.svg)
+# ![logo](https://raw.githubusercontent.com/gilbarbara/logos/9f0858601cc8543b51c8eea0722dbab4a7c7a1f9/logos/ansible.svg)
 [//]: # (Ansible/Red Hat, Public domain, via Wikimedia Commons)
 
 A simple repo to hold playbooks that I have written over the years for a variety of purposes
